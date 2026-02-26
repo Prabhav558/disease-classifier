@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+asyncpg
+python-multipart
+httpx
+pillow
+torch
+torchvision
+transformers
+safetensors
+scikit-learn
+pandas
+numpy
+evaluate
