@@ -16,14 +16,18 @@ from PIL import Image
 from safetensors.torch import load_file
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 
-# Add project root to path so we can import config, model, predict
+# Add project root to path so we can import model, predict
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from config import LABEL_NAMES, MODEL_NAME, PLANT_TYPE_CATEGORIES
 from model import MultimodalViT
 from predict import rebuild_scaler
+
+# ── Constants (previously in root config.py) ──────────────────────────────────
+MODEL_NAME = "wambugu71/crop_leaf_diseases_vit"
+LABEL_NAMES = ["disease_stress", "healthy", "nutrient_stress", "water_stress"]
+PLANT_TYPE_CATEGORIES = ["Corn", "Potato", "Rice", "Wheat"]
 
 BEST_CHECKPOINT = os.path.join(
     PROJECT_ROOT,

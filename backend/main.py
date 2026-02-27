@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 from database import create_tables
+from services.heartbeat import heartbeat_monitor
 from services.inference import load_all_models
 
 
@@ -36,8 +37,18 @@ async def lifespan(app: FastAPI):
     models = await asyncio.to_thread(load_all_models)
     app.state.models = models
 
+    # Start background task: marks sensors offline if no reading in >2 min
+    app.state.heartbeat_task = asyncio.create_task(heartbeat_monitor())
+    print("Heartbeat monitor started.")
+
     yield
-    # Shutdown: nothing to clean up
+
+    # Shutdown: cancel the heartbeat task gracefully
+    app.state.heartbeat_task.cancel()
+    try:
+        await app.state.heartbeat_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(title="Crop Disease Dashboard API", lifespan=lifespan)

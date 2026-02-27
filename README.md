@@ -200,6 +200,53 @@ curl -X POST http://localhost:8000/api/sensors/1/reading \
 
 Low values will trigger threshold-based alerts.
 
+### IoT Sensor Simulator
+
+Simulates a grid of IoT sensor nodes sending NPK + soil moisture readings to the backend. Automatically cycles through stress scenarios (healthy → nutrient stress → water stress → disease stress → critical).
+
+```bash
+python tests/simulate_live.py
+```
+
+**Controls:**
+- Press **Enter** to skip to the next scenario immediately
+- Press **Ctrl+C** to stop
+
+The simulator sends readings for all sensors every 15 seconds and auto-advances scenarios every 3 rounds. Readings are displayed in a live table with color-coded status.
+
+### Drone Flight Simulator
+
+Sends real crop images from `data/Crop___Disease/` to the drone upload endpoint, triggering the full ML pipeline.
+
+**Interactive mode** (pick a plant type from a menu, uploads 10 images):
+```bash
+python tests/drone_test.py
+```
+
+**Specify plant type and count:**
+```bash
+python tests/drone_test.py --plant Corn --count 5
+python tests/drone_test.py --plant Wheat --count 10 --scenario healthy
+```
+
+**Single image upload to a specific zone:**
+```bash
+python tests/drone_test.py --zone 1 --scenario disease
+```
+
+**Full sweep over all zones:**
+```bash
+python tests/drone_test.py --sweep
+```
+
+| Flag | Description |
+|------|-------------|
+| `--plant` | Plant type: `Corn`, `Potato`, `Rice`, `Wheat` |
+| `--count` | Number of images to upload (default: 10) |
+| `--scenario` | NPK profile: `healthy`, `disease`, `nutrient`, `water` |
+| `--zone` | Target a specific sensor/zone ID |
+| `--sweep` | Fly over all zones with mixed scenarios |
+
 ## Project Structure
 
 ```

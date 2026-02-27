@@ -88,7 +88,8 @@ async def create_sensor_reading(
     )
     db.add(reading)
 
-    # Update sensor timestamp
+    # Re-activate sensor if previously marked offline/error, update timestamp
+    sensor.status = "active"
     sensor.last_reading_at = datetime.utcnow()
 
     # Run alert engine on reading

@@ -14,10 +14,18 @@ classification head is discarded. The first 50% of transformer layers (0-5)
 and the patch/position embeddings are frozen.
 """
 
+import os
+import sys
+
 import torch
 import torch.nn as nn
 from transformers import AutoModelForImageClassification
 from transformers.modeling_outputs import ImageClassifierOutput
+
+# Ensure project root (where config.py lives) is on sys.path
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _THIS_DIR not in sys.path:
+    sys.path.insert(0, _THIS_DIR)
 
 from config import (
     FREEZE_FIRST_N_LAYERS,

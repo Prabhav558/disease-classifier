@@ -69,6 +69,7 @@ async def get_grid_state(db: AsyncSession = Depends(get_db)):
             latest_prediction=analysis.prediction if analysis else None,
             latest_confidence=analysis.confidence if analysis else None,
             has_alert=has_alert,
+            last_reading_at=sensor.last_reading_at,
         ))
 
     return cells

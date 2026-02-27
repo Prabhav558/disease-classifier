@@ -18,7 +18,7 @@ async def geocode_region(city_or_pincode: str) -> tuple[float, float] | None:
     async with httpx.AsyncClient() as client:
         resp = await client.get(GEO_URL, params={"q": city_or_pincode, "limit": 1, "appid": API_KEY})
         data = resp.json()
-        if data and len(data) > 0:
+        if isinstance(data, list) and len(data) > 0:
             return (data[0]["lat"], data[0]["lon"])
     return None
 
@@ -34,7 +34,11 @@ async def get_current_weather(lat: float, lon: float) -> dict:
             params={"lat": lat, "lon": lon, "appid": API_KEY, "units": "metric"},
         )
         data = resp.json()
-        return {
-            "air_temperature": data["main"]["temp"],
-            "humidity": data["main"]["humidity"],
-        }
+        try:
+            return {
+                "air_temperature": data["main"]["temp"],
+                "humidity": data["main"]["humidity"],
+            }
+        except (KeyError, TypeError):
+            # API returned an error response — fall back to defaults
+            return {"air_temperature": 25.0, "humidity": 60.0}

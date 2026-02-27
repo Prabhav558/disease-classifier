@@ -142,3 +142,6 @@ class GridCellResponse(BaseModel):
     latest_prediction: str | None = None
     latest_confidence: float | None = None
     has_alert: bool = False
+    last_reading_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
