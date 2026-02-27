@@ -6,23 +6,50 @@ function GridCell({ cell }) {
     if (cell.status === 'error' || cell.status === 'offline') return 'bg-red-500'
     if (!cell.latest_prediction) return 'bg-green-500'
     switch (cell.latest_prediction) {
-      case 'healthy': return 'bg-green-500'
+      case 'healthy':        return 'bg-green-500'
       case 'disease_stress': return 'bg-orange-500'
-      case 'nutrient_stress': return 'bg-yellow-500'
-      case 'water_stress': return 'bg-yellow-500'
-      default: return 'bg-green-500'
+      case 'nutrient_stress':return 'bg-yellow-500'
+      case 'water_stress':   return 'bg-yellow-500'
+      default:               return 'bg-green-500'
     }
   }
 
+  const formatLastSeen = (ts) => {
+    if (!ts) return 'Never'
+    const d = new Date(ts + 'Z') // treat as UTC
+    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000)
+    if (diffSec < 60) return `${diffSec}s ago`
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin < 60) return `${diffMin}m ago`
+    return d.toLocaleTimeString()
+  }
+
+  const statusLabel = cell.status === 'offline' ? 'OFFLINE'
+    : cell.status === 'error' ? 'ERROR'
+    : cell.latest_prediction
+    ? `${cell.latest_prediction.replace(/_/g, ' ')} (${cell.latest_confidence?.toFixed(1)}%)`
+    : 'No data yet'
+
   return (
-    <div
-      className={`${getColor()} rounded aspect-square flex items-center justify-center relative group cursor-pointer border border-gray-700`}
-      title={`Zone ${cell.zone_index + 1}${cell.latest_prediction ? ` - ${cell.latest_prediction} (${cell.latest_confidence?.toFixed(1)}%)` : ''}`}
-    >
+    <div className={`${getColor()} rounded aspect-square flex items-center justify-center relative group cursor-pointer border border-gray-700`}>
       <div className="w-2 h-2 bg-gray-900 rounded-full" />
       {cell.has_alert && (
         <div className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-700 rounded-full animate-pulse" />
       )}
+      {/* Custom tooltip */}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+        <div className="bg-gray-900 border border-gray-600 rounded shadow-lg px-3 py-2 text-xs text-white whitespace-nowrap">
+          <div className="font-semibold mb-1">Zone {cell.zone_index + 1}</div>
+          <div className="text-gray-300">{statusLabel}</div>
+          <div className="mt-1">
+            <span className="text-gray-500">Last seen: </span>
+            <span className={cell.status === 'offline' ? 'text-red-400' : 'text-gray-300'}>
+              {formatLastSeen(cell.last_reading_at)}
+            </span>
+          </div>
+        </div>
+        <div className="w-2 h-2 bg-gray-900 border-r border-b border-gray-600 rotate-45 mx-auto -mt-1" />
+      </div>
     </div>
   )
 }
@@ -83,7 +110,7 @@ export default function DashboardPage({ config }) {
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 30000)
+    const interval = setInterval(fetchData, 10000)
     return () => clearInterval(interval)
   }, [])
 
