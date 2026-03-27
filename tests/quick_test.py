@@ -14,7 +14,7 @@ import requests
 # Force UTF-8 output on Windows terminals
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-sys.path.insert(0, ".")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
 from tests.scenarios import get_reading
 
 BASE_URL = "http://localhost:8000"

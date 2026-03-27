@@ -136,7 +136,7 @@ def upload_drone(zone_id: int, image_path: str, scenario: str) -> dict | None:
 def print_result(zone_id: int, image_path: str, result: dict):
     analysis   = result.get("analysis", {})
     prediction = analysis.get("prediction", "unknown")
-    confidence = analysis.get("confidence", 0) * 100
+    confidence = analysis.get("confidence", 0)
     colour     = CONFIDENCE_COLOUR.get(prediction, RESET)
     img_name   = os.path.basename(image_path)
     folder     = os.path.basename(os.path.dirname(image_path))
@@ -147,12 +147,12 @@ def print_result(zone_id: int, image_path: str, result: dict):
     print(f"    Confidence : {colour}{confidence:.1f}%{RESET}")
 
     # Show all class probabilities
-    probs = analysis.get("all_probs", {})
+    probs = analysis.get("all_probs_json", {})
     if probs:
         print(f"    All probs  :")
         for label, prob in sorted(probs.items(), key=lambda x: -x[1]):
-            bar = "█" * int(prob * 20)
-            print(f"      {label:<18} {prob*100:5.1f}%  {bar}")
+            bar = "█" * max(0, round(prob / 5))
+            print(f"      {label:<18} {prob:5.1f}%  {bar}")
     print()
 
 
@@ -181,12 +181,12 @@ def run_sweep(catalogue: dict, sensors: list[dict]):
         img_scenario = "healthy" if scenario == "healthy" else "disease"
 
         print(f"  Flying zone {zone_id} (zone {sensor['zone_index']+1})  scenario={scenario} …", end=" ", flush=True)
-        result = upload_drone(zone_id, image_path, img_scenario)
+        result = upload_drone(zone_id, image_path, scenario)
 
         if result:
             analysis   = result.get("analysis", {})
             prediction = analysis.get("prediction", "?")
-            confidence = analysis.get("confidence", 0) * 100
+            confidence = analysis.get("confidence", 0)
             colour     = CONFIDENCE_COLOUR.get(prediction, RESET)
             print(f"{colour}{prediction} ({confidence:.0f}%){RESET}")
         else:
@@ -268,7 +268,7 @@ def run_multi(plant_type: str, count: int, scenario: str, sensors: list[dict]):
         if result:
             analysis   = result.get("analysis", {})
             prediction = analysis.get("prediction", "?")
-            confidence = analysis.get("confidence", 0) * 100
+            confidence = analysis.get("confidence", 0)
             colour     = CONFIDENCE_COLOUR.get(prediction, RESET)
             print(f"    Prediction : {colour}{BOLD}{prediction}{RESET}  ({colour}{confidence:.1f}%{RESET})")
             success += 1

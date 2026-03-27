@@ -142,22 +142,25 @@ def main():
 
         round_num += 1
 
-        # Auto-advance scenario?
-        if round_num % CYCLE_EVERY == 0:
+        # Sleep — returns early if Enter was pressed at any point this round
+        # NOTE: do NOT clear _advance before waiting; a keypress during the
+        # sensor-reading loop above would be silently lost if we did.
+        _advance.wait(timeout=INTERVAL)
+        manual = _advance.is_set()
+        _advance.clear()
+
+        # Advance scenario: manual (Enter) takes priority over auto-cycle.
+        # Only advance once per round so we never skip two scenarios.
+        if manual:
+            cycle_idx += 1
+            print(f"  {CYAN}Manual advance →{RESET} "
+                  f"{SCENARIOS[DEMO_CYCLE[cycle_idx % len(DEMO_CYCLE)]]['label']}")
+        elif round_num % CYCLE_EVERY == 0:
             cycle_idx += 1
             nxt = DEMO_CYCLE[cycle_idx % len(DEMO_CYCLE)]
             colour = SCENARIO_COLOUR.get(nxt, RESET)
             print(f"\n  {CYAN}Auto-advancing to:{RESET} "
-                  f"{colour}{BOLD}{SCENARIOS[nxt]['label']}{RESET} "
-                  f"(in {INTERVAL}s)")
-
-        # Sleep with early-exit on Enter
-        _advance.clear()
-        _advance.wait(timeout=INTERVAL)
-        if _advance.is_set():
-            cycle_idx += 1
-            print(f"  {CYAN}Manual advance →{RESET} "
-                  f"{SCENARIOS[DEMO_CYCLE[cycle_idx % len(DEMO_CYCLE)]]['label']}")
+                  f"{colour}{BOLD}{SCENARIOS[nxt]['label']}{RESET}")
 
 
 if __name__ == "__main__":
