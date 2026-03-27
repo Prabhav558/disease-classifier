@@ -2,37 +2,75 @@
 inference.py — Model loading and prediction wrappers.
 
 Loads both models once at startup:
-  1. MultimodalViT (our trained 4-class model)
+  1. MultimodalViT (our trained 4-class model) — 18-dim sensor input
   2. Original ViT (wambugu71/crop_leaf_diseases_vit, 13-class image-only)
+
+The StandardScaler is loaded from the saved file (results/scaler.pkl) produced
+by train.py, which guarantees exact reproducibility with training-time scaling.
 """
 
 import math
 import os
+import pickle
 import sys
 
 import numpy as np
 import torch
 from PIL import Image
 from safetensors.torch import load_file
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 
-# Add project root to path so we can import model, predict
+# Add project root to path so we can import model, config
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from model import MultimodalViT
-from predict import rebuild_scaler
 
-# ── Constants (previously in root config.py) ──────────────────────────────────
-MODEL_NAME = "wambugu71/crop_leaf_diseases_vit"
-LABEL_NAMES = ["disease_stress", "healthy", "nutrient_stress", "water_stress"]
+# ── Constants ─────────────────────────────────────────────────────────────────
+MODEL_NAME            = "wambugu71/crop_leaf_diseases_vit"
+LABEL_NAMES           = ["disease_stress", "healthy", "nutrient_stress", "water_stress"]
 PLANT_TYPE_CATEGORIES = ["Corn", "Potato", "Rice", "Wheat"]
+SOIL_TYPE_CATEGORIES  = ["Alluvial", "Black", "Clay", "Loamy", "Red", "Sandy"]
 
 BEST_CHECKPOINT = os.path.join(
     PROJECT_ROOT,
     os.environ.get("CHECKPOINT_PATH", "results/checkpoint-8800/model.safetensors"),
 )
+SCALER_PATH = os.path.join(PROJECT_ROOT, "results", "scaler.pkl")
+
+
+def _load_scaler() -> StandardScaler:
+    """Load scaler from disk if available, otherwise rebuild from training data."""
+    if os.path.exists(SCALER_PATH):
+        with open(SCALER_PATH, "rb") as f:
+            scaler = pickle.load(f)
+        print(f"Scaler loaded from {SCALER_PATH}")
+        return scaler
+
+    print("Scaler file not found — rebuilding from training split (run train.py to persist it)")
+    import pandas as pd
+    from config import CSV_PATH, NUMERIC_SENSOR_COLS, SEED, TEST_SIZE
+
+    df = pd.read_csv(CSV_PATH)
+    train_df, _ = train_test_split(df, test_size=TEST_SIZE, random_state=SEED)
+
+    numeric = train_df[NUMERIC_SENSOR_COLS].values.astype(np.float32)
+    plant_oh = (
+        pd.get_dummies(train_df["plant_type"], prefix="plant_type")
+        .reindex(columns=[f"plant_type_{c}" for c in PLANT_TYPE_CATEGORIES], fill_value=0)
+        .values.astype(np.float32)
+    )
+    soil_oh = (
+        pd.get_dummies(train_df["soil_type"], prefix="soil_type")
+        .reindex(columns=[f"soil_type_{c}" for c in SOIL_TYPE_CATEGORIES], fill_value=0)
+        .values.astype(np.float32)
+    )
+    scaler = StandardScaler()
+    scaler.fit(np.concatenate([numeric, plant_oh, soil_oh], axis=1))
+    return scaler
 
 
 def load_all_models() -> dict:
@@ -40,7 +78,7 @@ def load_all_models() -> dict:
     print("Loading MultimodalViT from checkpoint...")
     multimodal_model = MultimodalViT()
     state_dict = load_file(BEST_CHECKPOINT)
-    multimodal_model.load_state_dict(state_dict)
+    multimodal_model.load_state_dict(state_dict, strict=False)
     multimodal_model.eval()
 
     print("Loading original ViT disease classifier...")
@@ -49,8 +87,8 @@ def load_all_models() -> dict:
 
     processor = AutoImageProcessor.from_pretrained(MODEL_NAME)
 
-    print("Rebuilding StandardScaler from training data...")
-    scaler = rebuild_scaler()
+    print("Loading StandardScaler...")
+    scaler = _load_scaler()
 
     # Extract disease label names from original model config
     disease_labels = {int(k): v for k, v in vit_disease_model.config.id2label.items()}
@@ -75,18 +113,19 @@ def run_multimodal_prediction(
     humidity: float,
     hour: float,
     crop_type: str,
+    soil_type: str,
     models: dict,
 ) -> dict:
     """Run the 4-class multimodal prediction (image + sensor data)."""
-    model = models["multimodal_model"]
+    model     = models["multimodal_model"]
     processor = models["processor"]
-    scaler = models["scaler"]
+    scaler    = models["scaler"]
 
     # Image
-    image = Image.open(image_path).convert("RGB")
+    image        = Image.open(image_path).convert("RGB")
     pixel_values = processor(images=image, return_tensors="pt")["pixel_values"].float()
 
-    # Sensor features
+    # Sensor features (18-dim)
     sin_time = math.sin(2 * math.pi * hour / 24)
     cos_time = math.cos(2 * math.pi * hour / 24)
 
@@ -95,19 +134,24 @@ def run_multimodal_prediction(
         dtype=np.float32,
     ).reshape(1, -1)
 
-    one_hot = np.array(
+    plant_oh = np.array(
         [1.0 if crop_type == c else 0.0 for c in PLANT_TYPE_CATEGORIES],
         dtype=np.float32,
     ).reshape(1, -1)
 
-    raw = np.concatenate([numeric, one_hot], axis=1)
-    scaled = scaler.transform(raw).astype(np.float32)
+    soil_oh = np.array(
+        [1.0 if soil_type == c else 0.0 for c in SOIL_TYPE_CATEGORIES],
+        dtype=np.float32,
+    ).reshape(1, -1)
+
+    raw      = np.concatenate([numeric, plant_oh, soil_oh], axis=1)  # (1, 18)
+    scaled   = scaler.transform(raw).astype(np.float32)
     sensor_t = torch.from_numpy(scaled)
 
     with torch.no_grad():
         output = model(pixel_values=pixel_values, sensor_features=sensor_t)
 
-    probs = torch.softmax(output.logits, dim=-1)[0]
+    probs    = torch.softmax(output.logits, dim=-1)[0]
     pred_idx = probs.argmax().item()
 
     return {
@@ -122,17 +166,17 @@ def run_multimodal_prediction(
 
 def run_disease_classification(image_path: str, models: dict) -> dict:
     """Run the 13-class image-only disease classification."""
-    model = models["vit_disease_model"]
-    processor = models["processor"]
+    model          = models["vit_disease_model"]
+    processor      = models["processor"]
     disease_labels = models["disease_labels"]
 
-    image = Image.open(image_path).convert("RGB")
+    image  = Image.open(image_path).convert("RGB")
     inputs = processor(images=image, return_tensors="pt")
 
     with torch.no_grad():
         output = model(**inputs)
 
-    probs = torch.softmax(output.logits, dim=-1)[0]
+    probs    = torch.softmax(output.logits, dim=-1)[0]
     pred_idx = probs.argmax().item()
 
     return {

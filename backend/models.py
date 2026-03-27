@@ -22,6 +22,7 @@ class FarmConfig(Base):
     grid_rows: Mapped[int] = mapped_column(Integer, nullable=False)
     grid_cols: Mapped[int] = mapped_column(Integer, nullable=False)
     crop_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    soil_type: Mapped[str] = mapped_column(String(20), nullable=False, default="Loamy")
     region: Mapped[str] = mapped_column(String(100), nullable=False)
     latitude: Mapped[float] = mapped_column(Float, nullable=True)
     longitude: Mapped[float] = mapped_column(Float, nullable=True)
@@ -46,6 +47,8 @@ class Sensor(Base):
     readings: Mapped[list["SensorReading"]] = relationship(back_populates="sensor")
     images: Mapped[list["DroneImage"]] = relationship(back_populates="sensor")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="sensor")
+    water_logs: Mapped[list["WaterSupplyLog"]] = relationship(back_populates="sensor")
+    schedules: Mapped[list["Schedule"]] = relationship(back_populates="sensor")
 
 
 class SensorReading(Base):
@@ -105,3 +108,38 @@ class Alert(Base):
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
 
     sensor: Mapped["Sensor"] = relationship(back_populates="alerts")
+
+
+class WaterSupplyLog(Base):
+    """Tracks irrigation start/stop events per zone."""
+    __tablename__ = "water_supply_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sensor_id: Mapped[int] = mapped_column(ForeignKey("sensors.id"))
+    # status: "active" | "stopped" | "scheduled"
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    stopped_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    triggered_by: Mapped[str] = mapped_column(String(50), nullable=False, default="manual")
+
+    sensor: Mapped["Sensor"] = relationship(back_populates="water_logs")
+
+
+class Schedule(Base):
+    """Cron-like scheduled tasks (watering, sensor reads, scans)."""
+    __tablename__ = "schedules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # action_type: "water_start" | "water_stop" | "sensor_read" | "scan"
+    action_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    # zone_id is nullable — None means "all zones"
+    zone_id: Mapped[int | None] = mapped_column(ForeignKey("sensors.id"), nullable=True)
+    # time_of_day in "HH:MM" 24-hour format e.g. "06:00"
+    time_of_day: Mapped[str] = mapped_column(String(5), nullable=False)
+    # repeat: "daily" | "weekdays" | "once"
+    repeat: Mapped[str] = mapped_column(String(20), nullable=False, default="daily")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    sensor: Mapped["Sensor | None"] = relationship(back_populates="schedules")

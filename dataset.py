@@ -155,6 +155,8 @@ def build_datasets(processor) -> tuple:
         "NaN values found in numeric sensor columns"
     assert df["plant_type"].isna().sum() == 0, \
         "NaN values found in plant_type column"
+    assert df["soil_type"].isna().sum() == 0, \
+        "NaN values found in soil_type column"
     assert df["final_condition_label"].isna().sum() == 0, \
         "NaN values found in final_condition_label column"
 

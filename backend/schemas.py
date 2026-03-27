@@ -3,6 +3,7 @@ schemas.py — Pydantic request/response models for all API endpoints.
 """
 
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -14,6 +15,7 @@ class FarmConfigCreate(BaseModel):
     field_height: float
     sensor_spacing: float
     crop_type: str
+    soil_type: str = "Loamy"
     region: str
 
 
@@ -25,6 +27,7 @@ class FarmConfigResponse(BaseModel):
     grid_rows: int
     grid_cols: int
     crop_type: str
+    soil_type: str
     region: str
     latitude: float | None
     longitude: float | None
@@ -145,3 +148,66 @@ class GridCellResponse(BaseModel):
     last_reading_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+# ── Water Supply ─────────────────────────────────────────────────────────────
+
+class WaterSupplyLogResponse(BaseModel):
+    id: int
+    sensor_id: int
+    status: str
+    started_at: datetime
+    stopped_at: datetime | None
+    triggered_by: str
+
+    model_config = {"from_attributes": True}
+
+
+class WaterControlRequest(BaseModel):
+    triggered_by: str = "manual"
+
+
+# ── Schedules ────────────────────────────────────────────────────────────────
+
+class ScheduleCreate(BaseModel):
+    name: str
+    action_type: str   # water_start | water_stop | sensor_read | scan
+    zone_id: Optional[int] = None
+    time_of_day: str   # "HH:MM"
+    repeat: str = "daily"  # daily | weekdays | once
+
+
+class ScheduleResponse(BaseModel):
+    id: int
+    name: str
+    action_type: str
+    zone_id: int | None
+    time_of_day: str
+    repeat: str
+    enabled: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Chat ─────────────────────────────────────────────────────────────────────
+
+class ChatMessage(BaseModel):
+    role: str   # "user" | "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatMessage] = []
+
+
+class ActionTaken(BaseModel):
+    tool: str
+    args: dict
+    result: str
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    actions_taken: list[ActionTaken] = []

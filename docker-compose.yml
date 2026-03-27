@@ -1,4 +1,6 @@
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: crop_disease_db
@@ -7,6 +9,47 @@ services:
       - "${POSTGRES_PORT:-5434}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crop_user} -d ${POSTGRES_DB:-crop_disease}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ── FastAPI Backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: crop_disease_backend
+    env_file: .env
+    environment:
+      # Inside Docker, reach the DB via the service name, not localhost
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount model checkpoints & scaler (read-only — built by train.py on host)
+      - ./results:/app/results:ro
+      # Persist uploaded drone images across restarts
+      - uploads:/app/backend/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── React Frontend (nginx) ──────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: crop_disease_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   pgdata:
+  uploads:

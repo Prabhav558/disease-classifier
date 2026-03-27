@@ -7,6 +7,8 @@ import CalibrationPage from './pages/CalibrationPage'
 import CropAnalysisPage from './pages/CropAnalysisPage'
 import DiseaseAnalysisPage from './pages/DiseaseAnalysisPage'
 import DroneManagementPage from './pages/DroneManagementPage'
+import WaterSupplyPage from './pages/WaterSupplyPage'
+import ChatPage from './pages/ChatPage'
 
 function App() {
   const [config, setConfig] = useState(null)
@@ -43,6 +45,8 @@ function App() {
           <Route path="/crop-analysis" element={config ? <CropAnalysisPage config={config} /> : <Navigate to="/calibration" />} />
           <Route path="/disease-analysis" element={config ? <DiseaseAnalysisPage /> : <Navigate to="/calibration" />} />
           <Route path="/drone" element={config ? <DroneManagementPage /> : <Navigate to="/calibration" />} />
+          <Route path="/water" element={config ? <WaterSupplyPage /> : <Navigate to="/calibration" />} />
+          <Route path="/chat" element={<ChatPage />} />
         </Routes>
       </main>
     </div>

@@ -45,15 +45,27 @@ class MultimodalViT(nn.Module):
     Multimodal classifier combining ViT-Tiny image features and sensor MLP features.
 
     Args:
-        num_classes : number of output classes (default from config: 4)
+        num_classes   : number of output classes (default from config: 4)
+        class_weights : optional 1-D float tensor of length num_classes for
+                        weighted cross-entropy loss; pass inverse class frequencies
+                        to counter dataset imbalance
     """
 
-    def __init__(self, num_classes: int = NUM_CLASSES) -> None:
+    def __init__(
+        self,
+        num_classes: int = NUM_CLASSES,
+        class_weights: torch.FloatTensor | None = None,
+    ) -> None:
         super().__init__()
         self._build_vit_backbone()
         self._freeze_vit_layers()
         self._build_sensor_encoder()
         self._build_classifier_head(num_classes)
+        # Register as buffer so it moves with .to(device) and is saved in state_dict
+        if class_weights is not None:
+            self.register_buffer("class_weights", class_weights.float())
+        else:
+            self.register_buffer("class_weights", None)
 
     # ── Sub-builders ──────────────────────────────────────────────────────────
 
@@ -139,9 +151,9 @@ class MultimodalViT(nn.Module):
         fused  = torch.cat([cls_embedding, sensor_embedding], dim=-1)    # (B, 256)
         logits = self.classifier(fused)                                   # (B, 4)
 
-        # 4. Compute loss when labels are available
+        # 4. Compute loss when labels are available (use class weights if set)
         loss = None
         if labels is not None:
-            loss = nn.CrossEntropyLoss()(logits, labels)
+            loss = nn.CrossEntropyLoss(weight=self.class_weights)(logits, labels)
 
         return ImageClassifierOutput(loss=loss, logits=logits)

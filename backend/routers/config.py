@@ -38,6 +38,7 @@ async def create_farm_config(body: FarmConfigCreate, db: AsyncSession = Depends(
         grid_rows=grid_rows,
         grid_cols=grid_cols,
         crop_type=body.crop_type,
+        soil_type=body.soil_type,
         region=body.region,
         latitude=lat,
         longitude=lon,

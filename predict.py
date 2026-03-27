@@ -1,13 +1,15 @@
 """
 predict.py — Run real-world predictions using the trained MultimodalViT model.
 
-Loads the best checkpoint, rebuilds the StandardScaler from training data,
-then tests 6 carefully crafted scenarios — including tricky cases where
-image alone would give the wrong answer but sensor data corrects it.
+Loads the best checkpoint, loads the saved StandardScaler from disk (or rebuilds
+from training data as fallback), then tests 6 carefully crafted scenarios —
+including tricky cases where image alone would give the wrong answer but sensor
+data corrects it.
 """
 
 import math
 import os
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -24,7 +26,9 @@ from config import (
     LABEL_NAMES,
     MODEL_NAME,
     NUMERIC_SENSOR_COLS,
+    OUTPUT_DIR,
     PLANT_TYPE_CATEGORIES,
+    SOIL_TYPE_CATEGORIES,
     SEED,
     TEST_SIZE,
 )
@@ -32,22 +36,38 @@ from model import MultimodalViT
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BEST_CHECKPOINT = os.path.join("results", "checkpoint-8800", "model.safetensors")
+SCALER_PATH     = os.path.join(OUTPUT_DIR, "scaler.pkl")
 PROJECT_ROOT    = os.path.dirname(os.path.abspath(__file__))
 
 
-# ── 1. Rebuild scaler from training split (deterministic, same seed) ──────────
+# ── 1. Load scaler (from disk if available, else rebuild from training split) ─
+def load_scaler() -> StandardScaler:
+    if os.path.exists(SCALER_PATH):
+        with open(SCALER_PATH, "rb") as f:
+            scaler = pickle.load(f)
+        print(f"Scaler loaded from {SCALER_PATH}")
+        return scaler
+    print("Scaler file not found — rebuilding from training split (run train.py to persist it)")
+    return rebuild_scaler()
+
+
 def rebuild_scaler() -> StandardScaler:
     df = pd.read_csv(CSV_PATH)
     train_df, _ = train_test_split(df, test_size=TEST_SIZE, random_state=SEED)
 
-    numeric  = train_df[NUMERIC_SENSOR_COLS].values.astype(np.float32)
-    one_hot  = (
+    numeric = train_df[NUMERIC_SENSOR_COLS].values.astype(np.float32)
+    plant_one_hot = (
         pd.get_dummies(train_df["plant_type"], prefix="plant_type")
         .reindex(columns=[f"plant_type_{c}" for c in PLANT_TYPE_CATEGORIES], fill_value=0)
         .values.astype(np.float32)
     )
+    soil_one_hot = (
+        pd.get_dummies(train_df["soil_type"], prefix="soil_type")
+        .reindex(columns=[f"soil_type_{c}" for c in SOIL_TYPE_CATEGORIES], fill_value=0)
+        .values.astype(np.float32)
+    )
     scaler = StandardScaler()
-    scaler.fit(np.concatenate([numeric, one_hot], axis=1))
+    scaler.fit(np.concatenate([numeric, plant_one_hot, soil_one_hot], axis=1))
     return scaler
 
 
@@ -71,6 +91,7 @@ def predict(
     humidity: float,
     hour: float,                # 0-23, auto-converted to sin/cos
     plant_type: str,            # "Corn" | "Potato" | "Rice" | "Wheat"
+    soil_type: str,             # "Alluvial" | "Black" | "Clay" | "Loamy" | "Red" | "Sandy"
     model: MultimodalViT,
     processor,
     scaler: StandardScaler,
@@ -92,14 +113,19 @@ def predict(
         dtype=np.float32,
     ).reshape(1, -1)
 
-    one_hot = np.array(
+    plant_one_hot = np.array(
         [1.0 if plant_type == c else 0.0 for c in PLANT_TYPE_CATEGORIES],
         dtype=np.float32,
     ).reshape(1, -1)
 
-    raw       = np.concatenate([numeric, one_hot], axis=1)       # (1, 12)
+    soil_one_hot = np.array(
+        [1.0 if soil_type == c else 0.0 for c in SOIL_TYPE_CATEGORIES],
+        dtype=np.float32,
+    ).reshape(1, -1)
+
+    raw       = np.concatenate([numeric, plant_one_hot, soil_one_hot], axis=1)  # (1, 18)
     scaled    = scaler.transform(raw).astype(np.float32)
-    sensor_t  = torch.from_numpy(scaled)                         # (1, 12)
+    sensor_t  = torch.from_numpy(scaled)                                        # (1, 18)
 
     # ── Inference ─────────────────────────────────────────────────────────────
     with torch.no_grad():
@@ -137,129 +163,118 @@ def print_result(case_name: str, result: dict, real_world_note: str):
 def run_tests(model, processor, scaler):
 
     # ── CASE 1: Genuinely healthy corn ────────────────────────────────────────
-    # Balanced NPK, normal moisture, mid-morning, low humidity -> should be healthy
     r1 = predict(
         image_path      = "Crop___Disease/Corn/Corn___Healthy/image (1).jpg",
         N=53.1, P=35.6, K=40.4,
         soil_moisture   = 28.0,
         air_temperature = 26.0,
         humidity        = 57.0,
-        hour            = 9,           # 9 AM
+        hour            = 9,
         plant_type      = "Corn",
+        soil_type       = "Loamy",
         model=model, processor=processor, scaler=scaler,
     )
     print_result(
         "Healthy Corn — good nutrients, normal moisture, morning",
         r1,
-        "Balanced NPK + ~28% moisture + 57% humidity = textbook healthy field."
-        " Image shows clean leaf. Both paths agree -> healthy.",
+        "Balanced NPK + ~28% moisture + 57% humidity = textbook healthy field.",
     )
 
     # ── CASE 2: Fungal disease stress (Corn Common Rust) ──────────────────────
-    # Diseased image + high humidity (classic fungal condition)
     r2 = predict(
         image_path      = "Crop___Disease/Corn/Corn___Common_Rust/image (1).JPG",
         N=40.7, P=23.7, K=31.8,
         soil_moisture   = 43.0,
         air_temperature = 21.3,
-        humidity        = 87.0,         # very high -> fungal conditions
-        hour            = 6,            # dawn — peak spore release time
+        humidity        = 87.0,
+        hour            = 6,
         plant_type      = "Corn",
+        soil_type       = "Loamy",
         model=model, processor=processor, scaler=scaler,
     )
     print_result(
         "Corn Common Rust — diseased leaf + humid dawn",
         r2,
-        "Rust spores thrive above 80% humidity. Dawn = dew on leaves = peak infection."
-        " Image shows orange pustules. Sensors confirm fungal environment -> disease_stress.",
+        "Rust spores thrive above 80% humidity. Dawn = dew on leaves = peak infection.",
     )
 
     # ── CASE 3: Nutrient stress (very low NPK) ────────────────────────────────
-    # Healthy-looking wheat image but critically low nitrogen
     r3 = predict(
         image_path      = "Crop___Disease/Wheat/Wheat___Healthy/Healthy002.jpg",
-        N=12.0, P=9.0, K=14.0,         # critically low — deficiency range
+        N=12.0, P=9.0, K=14.0,
         soil_moisture   = 34.0,
         air_temperature = 24.0,
         humidity        = 58.0,
         hour            = 11,
         plant_type      = "Wheat",
+        soil_type       = "Black",
         model=model, processor=processor, scaler=scaler,
     )
     print_result(
         "Wheat Nutrient Deficiency — low NPK despite healthy-looking leaf",
         r3,
-        "N<15 causes yellowing (chlorosis) within days — not yet visible in leaf photo."
-        " This is exactly what image-only models MISS. Sensors catch it early -> nutrient_stress.",
+        "N<15 causes yellowing within days — not yet visible. Sensors catch it early.",
     )
 
     # ── CASE 4: Water / drought stress ────────────────────────────────────────
-    # Healthy leaf image but very dry soil + scorching afternoon heat
     r4 = predict(
         image_path      = "Crop___Disease/Rice/Rice___Healthy/IMG_20190419_094251.jpg",
         N=47.0, P=30.0, K=41.0,
-        soil_moisture   = 7.0,          # critically dry (field capacity = 25-30%)
-        air_temperature = 39.0,         # heat stress threshold for rice = 35°C
+        soil_moisture   = 7.0,
+        air_temperature = 39.0,
         humidity        = 28.0,
-        hour            = 14,           # 2 PM — hottest part of day
+        hour            = 14,
         plant_type      = "Rice",
+        soil_type       = "Clay",
         model=model, processor=processor, scaler=scaler,
     )
     print_result(
         "Rice Drought Stress — good nutrients but scorching dry afternoon",
         r4,
-        "Rice needs 25-50% soil moisture. At 7% + 39°C the plant wilts and stomata close."
-        " Leaf looks OK at photo time but is actively stressed -> water_stress.",
+        "Rice needs 25-50% soil moisture. At 7% + 39°C the plant is actively stressed.",
     )
 
     # ── CASE 5 (TRICKY): Diseased image — but sensors say nutrient stress ─────
-    # Real-world: yellowing from rust vs yellowing from N-deficiency looks identical.
-    # Sensors have critically low N -> model should read sensors over image appearance.
     r5 = predict(
         image_path      = "Crop___Disease/Corn/Corn___Common_Rust/image (100).JPG",
-        N=11.0, P=8.0, K=13.0,         # critically low NPK
+        N=11.0, P=8.0, K=13.0,
         soil_moisture   = 33.0,
         air_temperature = 25.0,
-        humidity        = 48.0,         # low humidity — NOT a fungal environment
+        humidity        = 48.0,
         hour            = 10,
         plant_type      = "Corn",
+        soil_type       = "Sandy",
         model=model, processor=processor, scaler=scaler,
     )
     print_result(
         "TRICKY — Rust-looking leaf but sensors say nutrient deficiency",
         r5,
-        "Low humidity (48%) makes fungal infection unlikely — rust needs >70%."
-        " Very low NPK is the real culprit. Image-only model would wrongly say disease."
-        " Multimodal model uses sensors to correct the diagnosis -> nutrient_stress.",
+        "Low humidity (48%) makes fungal infection unlikely. Very low NPK is the culprit.",
     )
 
     # ── CASE 6 (TRICKY): Healthy image — but sensors say water stress ─────────
-    # Early drought: leaf not yet visibly wilted but soil already critically dry.
-    # This is EARLY DETECTION — the model should catch it before visual symptoms.
     r6 = predict(
         image_path      = "Crop___Disease/Potato/Potato___Healthy/00fc2ee5-729f-4757-8aeb-65c3355874f2___RS_HL 1864.JPG",
         N=50.0, P=32.0, K=44.0,
-        soil_moisture   = 6.0,          # critically dry
+        soil_moisture   = 6.0,
         air_temperature = 37.0,
         humidity        = 22.0,
-        hour            = 13,           # early afternoon heat
+        hour            = 13,
         plant_type      = "Potato",
+        soil_type       = "Loamy",
         model=model, processor=processor, scaler=scaler,
     )
     print_result(
         "TRICKY — Healthy-looking potato but early drought stress",
         r6,
-        "Potato wilting appears 24-48h AFTER soil dries below 10%."
-        " At photo time the leaf looks fine — image-only model says healthy."
-        " Sensors catch the drought early -> water_stress. This is the core value"
-        " of multimodal: catching stress BEFORE visible damage.",
+        "Potato wilting appears 24-48h AFTER soil dries below 10%. Early detection.",
     )
 
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("Loading model from best checkpoint (step 8800, val_acc=95.34%)...")
-    scaler    = rebuild_scaler()
+    print("Loading model from best checkpoint...")
+    scaler    = load_scaler()
     processor = AutoImageProcessor.from_pretrained(MODEL_NAME)
     model     = load_model()
     print("Model ready.\n")

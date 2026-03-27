@@ -3,6 +3,7 @@ uvicorn[standard]
 sqlalchemy[asyncio]
 asyncpg
 python-multipart
+python-dotenv
 httpx
 pillow
 torch
@@ -13,3 +14,4 @@ scikit-learn
 pandas
 numpy
 evaluate
+openai

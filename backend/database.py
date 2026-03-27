@@ -5,6 +5,7 @@ database.py — Async SQLAlchemy setup for PostgreSQL via asyncpg.
 import os
 
 from dotenv import load_dotenv
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -34,3 +35,18 @@ async def get_db():
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+async def run_migrations():
+    """Add new columns to existing tables that may have been created before schema updates."""
+    migrations = [
+        # soil_type added to farm_config after initial deployment
+        "ALTER TABLE farm_config ADD COLUMN IF NOT EXISTS soil_type VARCHAR(20) NOT NULL DEFAULT 'Loamy'",
+        # water_supply_logs and schedules tables are created by create_all, but ensure indexes exist
+    ]
+    async with engine.begin() as conn:
+        for sql in migrations:
+            try:
+                await conn.execute(text(sql))
+            except Exception as e:
+                print(f"Migration note: {e}")

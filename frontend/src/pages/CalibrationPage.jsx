@@ -9,6 +9,7 @@ export default function CalibrationPage({ onConfigured }) {
     field_height: 14,
     sensor_spacing: 2,
     crop_type: 'Corn',
+    soil_type: 'Loamy',
     region: '',
   })
   const [submitting, setSubmitting] = useState(false)
@@ -88,6 +89,21 @@ export default function CalibrationPage({ onConfigured }) {
             <option value="Potato">Potato</option>
             <option value="Rice">Rice</option>
             <option value="Wheat">Wheat</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Soil Type</label>
+          <select
+            name="soil_type" value={form.soil_type} onChange={handleChange}
+            className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white"
+          >
+            <option value="Alluvial">Alluvial</option>
+            <option value="Black">Black</option>
+            <option value="Clay">Clay</option>
+            <option value="Loamy">Loamy</option>
+            <option value="Red">Red</option>
+            <option value="Sandy">Sandy</option>
           </select>
         </div>
 

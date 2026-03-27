@@ -1,10 +1,12 @@
 import { NavLink } from 'react-router-dom'
 
 const links = [
-  { to: '/', label: 'Main page' },
-  { to: '/crop-analysis', label: 'Crop analysis' },
-  { to: '/disease-analysis', label: 'Disease analysis' },
-  { to: '/drone', label: 'Drone management' },
+  { to: '/', label: '🌾 Main page' },
+  { to: '/crop-analysis', label: '📊 Crop analysis' },
+  { to: '/disease-analysis', label: '🔬 Disease analysis' },
+  { to: '/drone', label: '🚁 Drone management' },
+  { to: '/water', label: '💧 Water supply' },
+  { to: '/chat', label: '🤖 AI Assistant' },
 ]
 
 export default function Sidebar() {

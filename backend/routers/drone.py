@@ -93,6 +93,7 @@ async def upload_drone_data(
         weather["humidity"],
         hour,
         config.crop_type,
+        config.soil_type,
         request.app.state.models,
     )
 

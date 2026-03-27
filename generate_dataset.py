@@ -24,7 +24,7 @@ random.seed(SEED)
 np.random.seed(SEED)
 
 BASE_DIR = Path(__file__).resolve().parent
-DATASET_DIR = BASE_DIR / "Crop___Disease"
+DATASET_DIR = BASE_DIR / "data" / "Crop___Disease"
 OUTPUT_CSV = BASE_DIR / "agri_multimodal_dataset.csv"
 OUTPUT_JSON = BASE_DIR / "dataset_summary.json"
 
@@ -48,9 +48,11 @@ FUNGAL_KEYWORDS = [
     "Gray_Leaf_Spot",
 ]
 
-# Probability of applying stress simulations to diseased / healthy samples
-NUTRIENT_STRESS_PROB = 0.15   # 15 % of samples get nutrient stress
-WATER_STRESS_PROB = 0.10      # 10 % of samples get water stress
+# Probability of applying stress overlays (raised to balance class distribution)
+# Original imbalance: disease=51%, healthy=24%, nutrient=15%, water=10%
+# These values yield roughly: disease=38%, healthy=18%, nutrient=26%, water=18%
+NUTRIENT_STRESS_PROB = 0.26   # 26 % of samples get nutrient stress
+WATER_STRESS_PROB = 0.18      # 18 % of samples get water stress
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────
@@ -131,8 +133,9 @@ def collect_images():
             plant_type, disease_label = parse_folder(disease_dir.name)
             for img_file in sorted(disease_dir.iterdir()):
                 if img_file.suffix.lower() in IMAGE_EXTENSIONS:
-                    # Store relative path for portability
-                    rel_path = img_file.relative_to(BASE_DIR).as_posix()
+                    # Store path relative to IMAGE_BASE_DIR (data/) — not project root
+                    # IMAGE_BASE_DIR = project_root/data, so strip "data/" prefix
+                    rel_path = img_file.relative_to(BASE_DIR / "data").as_posix()
                     yield rel_path, plant_type, disease_label
 
 
