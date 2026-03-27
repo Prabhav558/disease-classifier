@@ -1,29 +1,28 @@
 @import "tailwindcss";
 
+*, *::before, *::after { box-sizing: border-box; }
+
 body {
   margin: 0;
   min-height: 100vh;
+  background-color: #F8FAFC;
+  color: #0F172A;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Voice: pulsing ring around mic button while recording ──────────────── */
+/* ── Voice: pulsing ring ─────────────────────────────────────────────────── */
 .voice-pulse-ring {
   box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
   animation: voice-pulse 1.2s ease-in-out infinite;
 }
-
 @keyframes voice-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-  }
+  0%   { box-shadow: 0 0 0 0    rgba(239, 68, 68, 0.5); }
+  70%  { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);   }
+  100% { box-shadow: 0 0 0 0    rgba(239, 68, 68, 0);   }
 }
 
-/* ── Voice: waveform bars animation ─────────────────────────────────────── */
+/* ── Voice: waveform bars ────────────────────────────────────────────────── */
 .voice-wave-bar {
   width: 3px;
   height: 16px;
@@ -31,14 +30,19 @@ body {
   background-color: #ef4444;
   animation: wave 0.6s ease-in-out infinite alternate;
 }
-
 @keyframes wave {
-  0% {
-    transform: scaleY(0.3);
-    opacity: 0.6;
-  }
-  100% {
-    transform: scaleY(1);
-    opacity: 1;
-  }
+  0%   { transform: scaleY(0.3); opacity: 0.6; }
+  100% { transform: scaleY(1);   opacity: 1;   }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+/* ── Drag-over highlight ─────────────────────────────────────────────────── */
+.dropzone-active {
+  border-color: #059669 !important;
+  background-color: #ECFDF5 !important;
 }
