@@ -30,6 +30,17 @@ OUTPUT_JSON = BASE_DIR / "dataset_summary.json"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"}
 
+# Soil type categories and their weighted probability per plant type
+# Based on agronomic knowledge: e.g. Rice thrives in Clay/Alluvial, Wheat in Loamy/Black
+SOIL_TYPE_CATEGORIES = ["Alluvial", "Black", "Clay", "Loamy", "Red", "Sandy"]
+
+PLANT_SOIL_WEIGHTS = {
+    "Corn":   [0.20, 0.15, 0.15, 0.30, 0.10, 0.10],  # Corn: prefers Loamy/Alluvial
+    "Potato": [0.15, 0.10, 0.20, 0.25, 0.15, 0.15],  # Potato: Loamy/Clay
+    "Rice":   [0.30, 0.10, 0.35, 0.10, 0.05, 0.10],  # Rice: Clay/Alluvial (water-retaining)
+    "Wheat":  [0.20, 0.25, 0.10, 0.25, 0.10, 0.10],  # Wheat: Loamy/Black
+}
+
 # Fungal-disease folder keywords
 FUNGAL_KEYWORDS = [
     "Common_Rust", "Leaf_Blight", "Brown_Rust", "Yellow_Rust",
@@ -125,6 +136,12 @@ def collect_images():
                     yield rel_path, plant_type, disease_label
 
 
+def generate_soil_type(plant_type: str) -> str:
+    """Pick a soil type based on plant-type-specific weights."""
+    weights = PLANT_SOIL_WEIGHTS.get(plant_type, [1/6] * 6)
+    return random.choices(SOIL_TYPE_CATEGORIES, weights=weights, k=1)[0]
+
+
 def generate_row(plant_type: str, disease_label: str):
     """Generate sensor values + condition label for one sample."""
     is_healthy = disease_label.lower() == "healthy"
@@ -162,8 +179,10 @@ def generate_row(plant_type: str, disease_label: str):
     for k in sensor:
         sensor[k] = round(sensor[k], 2)
 
+    soil_type = generate_soil_type(plant_type)
+
     return {**sensor, "sin_time": sin_time, "cos_time": cos_time,
-            "final_condition_label": condition}
+            "soil_type": soil_type, "final_condition_label": condition}
 
 
 def build_dataset():
@@ -211,11 +230,15 @@ def build_summary(df: pd.DataFrame) -> dict:
     # Disease label counts
     disease_counts = df["disease_label"].value_counts().to_dict()
 
+    # Soil type counts
+    soil_counts = df["soil_type"].value_counts().to_dict()
+
     return {
         "total_samples": len(df),
         "class_counts": class_counts,
         "plant_counts": plant_counts,
         "disease_label_counts": disease_counts,
+        "soil_type_counts": soil_counts,
         "mean_npk_per_condition": mean_npk,
         "moisture_distribution": moisture_stats,
     }
@@ -237,7 +260,7 @@ def main():
     expected_cols = {
         "image_path", "plant_type", "disease_label",
         "N", "P", "K", "soil_moisture", "air_temperature", "humidity",
-        "sin_time", "cos_time", "final_condition_label",
+        "sin_time", "cos_time", "soil_type", "final_condition_label",
     }
     assert set(df.columns) == expected_cols, f"❌ Column mismatch: {set(df.columns)}"
 

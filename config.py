@@ -26,8 +26,8 @@ VIT_NUM_LAYERS        = 12    # total transformer blocks
 FREEZE_FIRST_N_LAYERS = 6     # freeze first 50% (layers 0-5)
 
 # ── Sensor MLP dimensions ─────────────────────────────────────────────────────
-# 8 numeric cols + 4 one-hot plant-type categories = 12 total input features
-SENSOR_INPUT_DIM  = 12
+# 8 numeric cols + 4 one-hot plant-type + 6 one-hot soil-type = 18 total input features
+SENSOR_INPUT_DIM  = 18
 SENSOR_HIDDEN_DIM = 64
 SENSOR_OUTPUT_DIM = 64
 # fusion dim = VIT_HIDDEN_SIZE + SENSOR_OUTPUT_DIM = 192 + 64 = 256
@@ -41,6 +41,8 @@ NUMERIC_SENSOR_COLS   = [
 ]
 # PlantType one-hot categories — alphabetical order guarantees determinism
 PLANT_TYPE_CATEGORIES = ["Corn", "Potato", "Rice", "Wheat"]
+# SoilType one-hot categories — alphabetical order guarantees determinism
+SOIL_TYPE_CATEGORIES  = ["Alluvial", "Black", "Clay", "Loamy", "Red", "Sandy"]
 
 # ── Data split ────────────────────────────────────────────────────────────────
 SEED      = 42
@@ -49,7 +51,7 @@ TEST_SIZE = 0.15   # 15% → temp; then temp is split 50/50 into val/test
 # ── Training hyperparameters ──────────────────────────────────────────────────
 OUTPUT_DIR    = "./results"
 BATCH_SIZE    = 4
-NUM_EPOCHS    = 5
+NUM_EPOCHS    = 8
 LR            = 2e-4
 WEIGHT_DECAY  = 0.01
 LOGGING_STEPS = 20

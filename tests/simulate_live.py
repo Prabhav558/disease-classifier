@@ -30,7 +30,7 @@ INTERVAL     = 15                        # seconds between rounds
 CYCLE_EVERY  = 3                         # auto-advance scenario every N rounds
 # ─────────────────────────────────────────────────────────────────────────────
 
-sys.path.insert(0, ".")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
 from tests.scenarios import SCENARIOS, DEMO_CYCLE, get_reading
 
 # ── ANSI colours ─────────────────────────────────────────────────────────────

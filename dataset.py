@@ -24,6 +24,7 @@ from config import (
     LABEL_NAMES,
     NUMERIC_SENSOR_COLS,
     PLANT_TYPE_CATEGORIES,
+    SOIL_TYPE_CATEGORIES,
     SEED,
     TEST_SIZE,
 )
@@ -35,7 +36,7 @@ class MultimodalCropDataset(Dataset):
     """
     Each sample returns:
         pixel_values    : FloatTensor (3, 224, 224)
-        sensor_features : FloatTensor (12,)   — scaled, includes one-hot plant type
+        sensor_features : FloatTensor (18,)   — scaled, includes one-hot plant type + soil type
         labels          : LongTensor  scalar
 
     Args:
@@ -53,7 +54,7 @@ class MultimodalCropDataset(Dataset):
 
         # One-hot encode plant_type; reindex guarantees all 4 columns exist
         # even if a split happens to be missing a category.
-        one_hot = (
+        plant_one_hot = (
             pd.get_dummies(self.df["plant_type"], prefix="plant_type")
             .reindex(
                 columns=[f"plant_type_{c}" for c in PLANT_TYPE_CATEGORIES],
@@ -62,7 +63,17 @@ class MultimodalCropDataset(Dataset):
             .values.astype(np.float32)                                    # (N, 4)
         )
 
-        raw_features = np.concatenate([numeric, one_hot], axis=1)        # (N, 12)
+        # One-hot encode soil_type; reindex guarantees all 6 columns exist
+        soil_one_hot = (
+            pd.get_dummies(self.df["soil_type"], prefix="soil_type")
+            .reindex(
+                columns=[f"soil_type_{c}" for c in SOIL_TYPE_CATEGORIES],
+                fill_value=0,
+            )
+            .values.astype(np.float32)                                    # (N, 6)
+        )
+
+        raw_features = np.concatenate([numeric, plant_one_hot, soil_one_hot], axis=1)  # (N, 18)
         self.sensor_matrix = scaler.transform(raw_features).astype(np.float32)
 
         # ── Integer labels ────────────────────────────────────────────────────
@@ -153,7 +164,7 @@ def build_datasets(processor) -> tuple:
 
     # ── Fit scaler on TRAIN only ──────────────────────────────────────────────
     numeric_train = train_df[NUMERIC_SENSOR_COLS].values.astype(np.float32)
-    one_hot_train = (
+    plant_one_hot_train = (
         pd.get_dummies(train_df["plant_type"], prefix="plant_type")
         .reindex(
             columns=[f"plant_type_{c}" for c in PLANT_TYPE_CATEGORIES],
@@ -161,7 +172,17 @@ def build_datasets(processor) -> tuple:
         )
         .values.astype(np.float32)
     )
-    raw_train = np.concatenate([numeric_train, one_hot_train], axis=1)  # (N_train, 12)
+    soil_one_hot_train = (
+        pd.get_dummies(train_df["soil_type"], prefix="soil_type")
+        .reindex(
+            columns=[f"soil_type_{c}" for c in SOIL_TYPE_CATEGORIES],
+            fill_value=0,
+        )
+        .values.astype(np.float32)
+    )
+    raw_train = np.concatenate(
+        [numeric_train, plant_one_hot_train, soil_one_hot_train], axis=1
+    )  # (N_train, 18)
 
     scaler = StandardScaler()
     scaler.fit(raw_train)   # ← ONLY call to .fit(); val/test use .transform() only
