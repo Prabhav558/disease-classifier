@@ -66,7 +66,7 @@ Edit `.env` and fill in your values:
 | `GROQ_MODEL` | LLM model name | Optional (default: `llama-3.3-70b-versatile`) |
 | `CHECKPOINT_PATH` | Trained model checkpoint | Optional (default: `results/checkpoint-8800/model.safetensors`) |
 
-### 3. Start PostgreSQL
+### 3. Start PostgreSQL DB
 
 ```bash
 docker compose up -d postgres
